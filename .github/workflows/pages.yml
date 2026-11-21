@@ -1,0 +1,51 @@
+name: Pages
+
+# Checks every push and pull request; publishes ./site to GitHub Pages only from main,
+# and only after the checks pass. (Settings -> Pages -> Source: "GitHub Actions".)
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Security and link checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - name: Secret scan (gitleaks, full history)
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2 git /repo --no-banner --redact
+      - name: Broken internal links and anchors (offline)
+        run: python3 .github/scripts/check_links.py site
+      - name: Only static files are published
+        run: |
+          bad=$(find site -type f ! -name '*.html' ! -name '*.css' ! -name '*.png' ! -name '*.svg' \
+                ! -name '*.ico' ! -name '*.txt' ! -name '.nojekyll' -print)
+          if [ -n "$bad" ]; then echo "Unexpected files in site/:"; echo "$bad"; exit 1; fi
+
+  deploy:
+    needs: checks
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write # only this job publishes
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - id: deployment
+        uses: actions/deploy-pages@v4
