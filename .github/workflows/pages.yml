@@ -19,6 +19,7 @@ jobs:
   checks:
     name: Security and link checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
@@ -36,6 +37,7 @@ jobs:
     needs: checks
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       pages: write # only this job publishes
       id-token: write
